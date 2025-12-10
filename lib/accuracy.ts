@@ -60,6 +60,15 @@ function calculateAccuracy (challengeKey: ChallengeKey, phase: Phase) {
 }
 
 function storeVerdict (challengeKey: ChallengeKey, phase: Phase, verdict: boolean) {
+  // Prevent prototype pollution
+  if (
+    challengeKey === '__proto__' ||
+    challengeKey === 'constructor' ||
+    challengeKey === 'prototype'
+  ) {
+    logger.error(`Rejected potentially dangerous challenge key: ${challengeKey}`);
+    return;
+  }
   if (!solves[challengeKey]) {
     solves[challengeKey] = { 'find it': false, 'fix it': false, attempts: { 'find it': 0, 'fix it': 0 } }
   }
