@@ -203,4 +203,24 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('isRedirectAllowed', () => {
+    it('returns true for allowlisted URLs', () => {
+      expect(security.isRedirectAllowed('https://github.com/juice-shop/juice-shop')).to.equal(true)
+      expect(security.isRedirectAllowed('https://blockchain.info/address/1AbKfgvw9psQ41NbLi8kufDQTezwG8DRZm')).to.equal(true)
+    })
+
+    it('returns false for non-allowlisted URLs', () => {
+      expect(security.isRedirectAllowed('http://example.com')).to.equal(false)
+      expect(security.isRedirectAllowed('https://evil.com')).to.equal(false)
+    })
+
+    it('returns false for non-string inputs to prevent type confusion', () => {
+      expect(security.isRedirectAllowed(null as any)).to.equal(false)
+      expect(security.isRedirectAllowed(undefined as any)).to.equal(false)
+      expect(security.isRedirectAllowed(123 as any)).to.equal(false)
+      expect(security.isRedirectAllowed({} as any)).to.equal(false)
+      expect(security.isRedirectAllowed([] as any)).to.equal(false)
+    })
+  })
 })
