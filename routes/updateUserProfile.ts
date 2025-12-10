@@ -11,6 +11,9 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+// Ensure URL is available (global in Node >=10, but explicit import for clarity)
+import { URL } from 'url'
+
 export function updateUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
@@ -28,9 +31,23 @@ export function updateUserProfile () {
       }
 
       challengeUtils.solveIf(challenges.csrfChallenge, () => {
-        return ((req.headers.origin?.includes('://htmledit.squarefree.com')) ??
-          (req.headers.referer?.includes('://htmledit.squarefree.com'))) &&
-          req.body.username !== user.username
+        const allowedHost = 'htmledit.squarefree.com'
+        const originHeader = req.headers.origin
+        const refererHeader = req.headers.referer
+        let isValidOrigin = false
+        try {
+          if (originHeader) {
+            const originUrl = new URL(originHeader)
+            isValidOrigin = originUrl.hostname === allowedHost
+          }
+        } catch (e) {}
+        try {
+          if (!isValidOrigin && refererHeader) {
+            const refererUrl = new URL(refererHeader)
+            isValidOrigin = refererUrl.hostname === allowedHost
+          }
+        } catch (e) {}
+        return isValidOrigin && req.body.username !== user.username
       })
 
       const savedUser = await user.update({ username: req.body.username })
