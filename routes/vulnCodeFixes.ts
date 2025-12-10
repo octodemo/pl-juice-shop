@@ -1,6 +1,8 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import yaml from 'js-yaml'
 import { type NextFunction, type Request, type Response } from 'express'
+import sanitizeFilename from 'sanitize-filename'
 
 import * as accuracy from '../lib/accuracy'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -77,10 +79,16 @@ export const checkCorrectFix = () => async (req: Request<Record<string, unknown>
     })
   } else {
     let explanation
-    if (fs.existsSync('./data/static/codefixes/' + key + '.info.yml')) {
-      const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))
-      const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
-      if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
+    const safeKey = sanitizeFilename(key)
+    {
+      // Securely resolve info file path
+      const infoFile = path.resolve(FixesDir, safeKey + '.info.yml')
+      // Ensure resolved path is within FixesDir
+      if (infoFile.startsWith(path.resolve(FixesDir)) && fs.existsSync(infoFile)) {
+        const codingChallengeInfos = yaml.load(fs.readFileSync(infoFile, 'utf8'))
+        const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
+        if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
+      }
     }
     if (selectedFix === fixData.correct) {
       await challengeUtils.solveFixIt(key)
