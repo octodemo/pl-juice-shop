@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import { URL } from 'node:url'
 import { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -17,6 +18,24 @@ export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
       const url = req.body.imageUrl
+      const allowedHosts = [
+        'imgur.com',
+        'i.imgur.com',
+        'images.unsplash.com',
+        'cdn.pixabay.com'
+      ]
+      let parsed
+      try {
+        parsed = new URL(url)
+      } catch (e) {
+        next(new Error('Invalid image URL'))
+        return
+      }
+      const hostname = parsed.hostname.toLowerCase()
+      if (!allowedHosts.some(h => hostname === h || hostname.endsWith('.' + h))) {
+        next(new Error('Image host not allowed'))
+        return
+      }
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
@@ -25,7 +44,13 @@ export function profileImageUrlUpload () {
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
           }
-          const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
+          // Robust: Extract extension and validate against allowlist
+          const allowedExt = ['jpg', 'jpeg', 'png', 'svg', 'gif']
+          let extMatch = url.match(/\.([a-zA-Z0-9]+)$/)
+          let ext = 'jpg'
+          if (extMatch && allowedExt.includes(extMatch[1].toLowerCase())) {
+            ext = extMatch[1].toLowerCase()
+          }
           const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
           await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
           await UserModel.findByPk(loggedInUser.data.id).then(async (user: UserModel | null) => { return await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` }) }).catch((error: Error) => { next(error) })
