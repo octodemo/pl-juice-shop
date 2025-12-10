@@ -11,6 +11,7 @@ import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
 import { type NextFunction, type Request, type Response } from 'express'
+import sanitizeFilename from 'sanitize-filename'
 
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
@@ -28,7 +29,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const buffer = file.buffer
-      const filename = file.originalname.toLowerCase()
+      const filename = sanitizeFilename(file.originalname.toLowerCase())
       const tempFile = path.join(os.tmpdir(), filename)
       fs.open(tempFile, 'w', function (err, fd) {
         if (err != null) { next(err) }
@@ -39,11 +40,18 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                // Sanitize: 1) block path traversal, 2) ensure within target dir
+                const targetDir = path.resolve('uploads/complaints')
+                const destPath = path.resolve(targetDir, fileName)
+                // Check for '..' and ensure destPath is within targetDir
+                if (
+                  !fileName.split(path.sep).includes('..') &&
+                  destPath.startsWith(targetDir + path.sep)
+                ) {
+                  challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return destPath === path.resolve('ftp/legal.md') })
+                  entry.pipe(fs.createWriteStream(destPath).on('error', function (err) { next(err) }))
                 } else {
+                  console.log('skipping unsafe path:', fileName)
                   entry.autodrain()
                 }
               }).on('error', function (err: unknown) { next(err) })
