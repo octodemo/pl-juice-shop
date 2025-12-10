@@ -61,10 +61,11 @@ function calculateAccuracy (challengeKey: ChallengeKey, phase: Phase) {
 
 function storeVerdict (challengeKey: ChallengeKey, phase: Phase, verdict: boolean) {
   // Prevent prototype pollution
+  const keyStr = challengeKey as string
   if (
-    challengeKey === '__proto__' ||
-    challengeKey === 'constructor' ||
-    challengeKey === 'prototype'
+    keyStr === '__proto__' ||
+    keyStr === 'constructor' ||
+    keyStr === 'prototype'
   ) {
     logger.error(`Rejected potentially dangerous challenge key: ${challengeKey}`);
     return;
