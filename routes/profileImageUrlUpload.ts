@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import { URL } from 'node:url'
 import { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -17,6 +18,24 @@ export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
       const url = req.body.imageUrl
+      const allowedHosts = [
+        'imgur.com',
+        'i.imgur.com',
+        'images.unsplash.com',
+        'cdn.pixabay.com'
+      ]
+      let parsed
+      try {
+        parsed = new URL(url)
+      } catch (e) {
+        next(new Error('Invalid image URL'))
+        return
+      }
+      const hostname = parsed.hostname.toLowerCase()
+      if (!allowedHosts.some(h => hostname === h || hostname.endsWith('.' + h))) {
+        next(new Error('Image host not allowed'))
+        return
+      }
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
